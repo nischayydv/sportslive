@@ -1,34 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NY Cricket Live</title>
+  <title>NY Cricket Live - JioPlayer</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.6.0/shaka-player.ui.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.6.0/controls.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Sharp">
-  
+
   <style>
-    /* Professional CSS Styles */
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { background: #000; height: 100vh; width: 100vw; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+    html, body { background: #000; height: 100vh; width: 100vw; overflow: hidden; font-family: sans-serif; }
     .shaka-video-container { position: absolute; inset: 0; width: 100%; height: 100%; }
-    video { width: 100%; height: 100%; background: #000; object-fit: contain; }
+    video { width: 100%; height: 100%; object-fit: contain; }
     
-    /* YouTube Theme Overrides */
-    .youtube-theme .shaka-controls-button-panel { height: 45px; padding: 0 15px; background: linear-gradient(transparent, rgba(0,0,0,0.7)); }
+    /* YouTube Style Red UI */
     .youtube-theme .shaka-played-range { background: #FF0000 !important; }
     .youtube-theme .shaka-seek-bar-container input[type=range]::-webkit-slider-thumb { background: #FF0000; }
     
     /* Overlay UI */
-    #playOverlay { position: absolute; inset: 0; z-index: 3000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); cursor: pointer; transition: 0.4s; }
-    #playOverlay.fade-out { opacity: 0; pointer-events: none; }
-    .ring { width: 50px; height: 50px; border: 4px solid #333; border-top-color: #ff0000; border-radius: 50%; animation: spin 1s linear infinite; }
+    #playOverlay { position: absolute; inset: 0; z-index: 3000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); cursor: pointer; transition: 0.5s; }
+    #playOverlay.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
+    .ring { width: 50px; height: 50px; border: 4px solid #333; border-top-color: #f00; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #playBtn { display: none; background: #f00; border-radius: 50%; padding: 20px; box-shadow: 0 0 20px rgba(255,0,0,0.5); }
-    #playBtn svg { width: 40px; height: 40px; fill: white; }
-    #channelTitle { position: absolute; left: 15px; top: 15px; color: white; background: rgba(0,0,0,0.6); padding: 5px 12px; border-radius: 4px; z-index: 10; font-weight: bold; }
+    #playBtn { display: none; background: #f00; border-radius: 50%; padding: 20px; box-shadow: 0 0 15px rgba(255,0,0,0.4); }
+    #playBtn svg { width: 40px; height: 40px; fill: #fff; }
+    #channelTitle { position: absolute; left: 15px; top: 15px; color: #fff; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px; z-index: 10; }
   </style>
 </head>
 <body>
@@ -37,66 +35,66 @@
   <div id="channelTitle">Star Sports 1 Hindi HD</div>
   <video playsinline id="video"></video>
   
-  <div id="playOverlay">
+  <div id="playOverlay" onclick="startPlayback()">
     <div class="ring" id="loadRing"></div>
-    <div id="playBtn" onclick="startPlayback()"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-    <div style="color:white; margin-top:15px;" id="statusLabel">Fetching Stream...</div>
+    <div id="playBtn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+    <div style="color:#fff; margin-top:15px;" id="statusLabel">Fetching Authorization...</div>
   </div>
 </div>
 
 <script>
-  // Configuration from your provided script
+  // Configuration
   const STREAM_URL = "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd";
   const COOKIE_API = "https://allrounder-live2.pages.dev/api/star-1-hindi.json";
   const DRM_KEYS = { "400131994b445d8c8817202248760fda": "2d56cb6f07a75b9aff165d534ae2bfc4" };
 
-  let player, video, sessionCookie = "";
+  let player, video, cleanToken = "";
 
-  async function init() {
+  async function initPlayer() {
     video = document.getElementById('video');
-    player = new shaka.Player(video);
-    
-    // Install polyfills
     shaka.polyfill.installAll();
+    
+    player = new shaka.Player(video);
+    const ui = new shaka.ui.Overlay(player, document.querySelector('.shaka-video-container'), video);
 
-    // 1. DRM Configuration
-    player.configure({
-      drm: { clearKeys: DRM_KEYS },
-      streaming: { bufferingGoal: 15, rebufferingGoal: 3 }
-    });
+    // 1. DRM Config
+    player.configure({ drm: { clearKeys: DRM_KEYS } });
 
-    // 2. Fetch Cookie
+    // 2. Fetch Cookie Data
     try {
       const resp = await fetch(COOKIE_API);
       const data = await resp.json();
-      sessionCookie = data.cookie; // Format: __hdnea__=exp=...
+      
+      // Cookie se '__hdnea__=' part hatana taaki URL saaf rahe
+      const rawCookie = data.cookie;
+      cleanToken = rawCookie.includes('__hdnea__=') ? rawCookie.split('__hdnea__=')[1] : rawCookie;
+
       document.getElementById('statusLabel').innerText = "Ready to Play";
       document.getElementById('loadRing').style.display = 'none';
       document.getElementById('playBtn').style.display = 'flex';
     } catch (e) {
-      document.getElementById('statusLabel').innerText = "Cookie Fetch Failed";
+      document.getElementById('statusLabel').innerText = "Auth Error (Check CORS)";
     }
 
-    // 3. Network Filter for Headers and Tokens
+    // 3. Network Filter - Yahaan Cookie URL mein add hoti hai
     player.getNetworkingEngine().registerRequestFilter((type, request) => {
+      // Headers spoofing
       request.headers['Referer'] = 'https://www.jiotv.com/';
       request.headers['User-Agent'] = 'plaYtv/7.1.5 (Linux; Android 13) ExoPlayerLib/2.11.6';
       
-      if (sessionCookie) {
-        request.headers['Cookie'] = sessionCookie;
-        // Append token to URL if not present
-        const tokenValue = sessionCookie.includes('=') ? sessionCookie.split('=')[1] : sessionCookie;
-        if (!request.uris[0].includes('__hdnea__')) {
-            request.uris[0] += (request.uris[0].includes('?') ? '&' : '?') + '__hdnea__=' + tokenValue;
+      if (cleanToken) {
+        // Har request (manifest/segment) ke peeche token lagana
+        const separator = request.uris[0].includes('?') ? '&' : '?';
+        if (!request.uris[0].includes('__hdnea__=')) {
+          request.uris[0] += separator + "__hdnea__=" + cleanToken;
         }
       }
     });
 
-    // 4. Load Stream
     try {
       await player.load(STREAM_URL);
     } catch (e) {
-      console.error("Load Error", e);
+      console.error("Load Error:", e.code);
     }
   }
 
@@ -106,13 +104,14 @@
       await video.play();
       document.getElementById('playOverlay').classList.add('fade-out');
     } catch (e) {
+      // Autoplay with mute if interaction blocked
       video.muted = true;
       video.play();
       document.getElementById('playOverlay').classList.add('fade-out');
     }
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', initPlayer);
 </script>
 
 </body>
