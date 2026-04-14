@@ -1,84 +1,119 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NY Cricket Live Player</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4.16.2/dist/controls.css">
-    <style>
-        body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-        #video-container { width: 100%; max-width: 900px; aspect-ratio: 16/9; border: 2px solid #333; }
-        video { width: 100%; height: 100%; }
-        .status { position: absolute; top: 10px; color: #fff; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; font-size: 12px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NY Cricket Live</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.6.0/shaka-player.ui.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.6.0/controls.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Sharp">
+  
+  <style>
+    /* Professional CSS Styles */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: #000; height: 100vh; width: 100vw; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+    .shaka-video-container { position: absolute; inset: 0; width: 100%; height: 100%; }
+    video { width: 100%; height: 100%; background: #000; object-fit: contain; }
+    
+    /* YouTube Theme Overrides */
+    .youtube-theme .shaka-controls-button-panel { height: 45px; padding: 0 15px; background: linear-gradient(transparent, rgba(0,0,0,0.7)); }
+    .youtube-theme .shaka-played-range { background: #FF0000 !important; }
+    .youtube-theme .shaka-seek-bar-container input[type=range]::-webkit-slider-thumb { background: #FF0000; }
+    
+    /* Overlay UI */
+    #playOverlay { position: absolute; inset: 0; z-index: 3000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); cursor: pointer; transition: 0.4s; }
+    #playOverlay.fade-out { opacity: 0; pointer-events: none; }
+    .ring { width: 50px; height: 50px; border: 4px solid #333; border-top-color: #ff0000; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #playBtn { display: none; background: #f00; border-radius: 50%; padding: 20px; box-shadow: 0 0 20px rgba(255,0,0,0.5); }
+    #playBtn svg { width: 40px; height: 40px; fill: white; }
+    #channelTitle { position: absolute; left: 15px; top: 15px; color: white; background: rgba(0,0,0,0.6); padding: 5px 12px; border-radius: 4px; z-index: 10; font-weight: bold; }
+  </style>
 </head>
 <body>
 
-<div id="video-container">
-    <video id="video" autoplay muted playsinline></video>
+<div class="shaka-video-container youtube-theme" data-shaka-player>
+  <div id="channelTitle">Star Sports 1 Hindi HD</div>
+  <video playsinline id="video"></video>
+  
+  <div id="playOverlay">
+    <div class="ring" id="loadRing"></div>
+    <div id="playBtn" onclick="startPlayback()"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+    <div style="color:white; margin-top:15px;" id="statusLabel">Fetching Stream...</div>
+  </div>
 </div>
-<div class="status" id="status">Initializing...</div>
-
-<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.16.2/dist/shaka-player.ui.min.js"></script>
 
 <script>
-    const CONFIG = {
-        manifestUrl: "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd",
-        cookieApi: "https://allrounder-live2.pages.dev/api/star-1-hindi.json",
-        clearKey: {
-            "400131994b445d8c8817202248760fda": "2d56cb6f07a75b9aff165d534ae2bfc4"
-        }
-    };
+  // Configuration from your provided script
+  const STREAM_URL = "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd";
+  const COOKIE_API = "https://allrounder-live2.pages.dev/api/star-1-hindi.json";
+  const DRM_KEYS = { "400131994b445d8c8817202248760fda": "2d56cb6f07a75b9aff165d534ae2bfc4" };
 
-    async function initPlayer() {
-        const video = document.getElementById('video');
-        const uiContainer = document.getElementById('video-container');
-        const status = document.getElementById('status');
+  let player, video, sessionCookie = "";
 
-        const player = new shaka.Player(video);
-        const ui = new shaka.ui.Overlay(player, uiContainer, video);
+  async function init() {
+    video = document.getElementById('video');
+    player = new shaka.Player(video);
+    
+    // Install polyfills
+    shaka.polyfill.installAll();
 
-        // 1. Configure DRM (ClearKey)
-        player.configure({
-            drm: { clearKeys: CONFIG.clearKey },
-            streaming: { lowLatencyMode: true }
-        });
+    // 1. DRM Configuration
+    player.configure({
+      drm: { clearKeys: DRM_KEYS },
+      streaming: { bufferingGoal: 15, rebufferingGoal: 3 }
+    });
 
-        // 2. Fetch the Dynamic Cookie/Token
-        try {
-            status.innerText = "Fetching Authorization...";
-            const response = await fetch(CONFIG.cookieApi);
-            const data = await response.json();
-            const sessionCookie = data.cookie;
-
-            // 3. Network Filter to inject Headers and Tokens
-            player.getNetworkingEngine().registerRequestFilter((type, request) => {
-                // Add required headers
-                request.headers['Referer'] = 'https://www.jiotv.com/';
-                request.headers['User-Agent'] = 'plaYtv/7.1.5 (Linux; Android 13) ExoPlayerLib/2.11.6';
-                request.headers['Cookie'] = sessionCookie;
-
-                // Append token to URL if not already present
-                const token = sessionCookie.includes('__hdnea__=') ? sessionCookie.split('__hdnea__=')[1] : sessionCookie;
-                const separator = request.uris[0].includes('?') ? '&' : '?';
-                if (!request.uris[0].includes('__hdnea__')) {
-                    request.uris[0] += separator + '__hdnea__=' + token;
-                }
-            });
-
-            // 4. Load Stream
-            status.innerText = "Loading Stream...";
-            await player.load(CONFIG.manifestUrl);
-            status.innerText = "Live: Star Sports 1 Hindi";
-            console.log("Player loaded successfully");
-
-        } catch (error) {
-            status.innerText = "Error: " + error.message;
-            console.error("Error code", error.code, "object", error);
-        }
+    // 2. Fetch Cookie
+    try {
+      const resp = await fetch(COOKIE_API);
+      const data = await resp.json();
+      sessionCookie = data.cookie; // Format: __hdnea__=exp=...
+      document.getElementById('statusLabel').innerText = "Ready to Play";
+      document.getElementById('loadRing').style.display = 'none';
+      document.getElementById('playBtn').style.display = 'flex';
+    } catch (e) {
+      document.getElementById('statusLabel').innerText = "Cookie Fetch Failed";
     }
 
-    document.addEventListener('shaka-ui-loaded', initPlayer);
+    // 3. Network Filter for Headers and Tokens
+    player.getNetworkingEngine().registerRequestFilter((type, request) => {
+      request.headers['Referer'] = 'https://www.jiotv.com/';
+      request.headers['User-Agent'] = 'plaYtv/7.1.5 (Linux; Android 13) ExoPlayerLib/2.11.6';
+      
+      if (sessionCookie) {
+        request.headers['Cookie'] = sessionCookie;
+        // Append token to URL if not present
+        const tokenValue = sessionCookie.includes('=') ? sessionCookie.split('=')[1] : sessionCookie;
+        if (!request.uris[0].includes('__hdnea__')) {
+            request.uris[0] += (request.uris[0].includes('?') ? '&' : '?') + '__hdnea__=' + tokenValue;
+        }
+      }
+    });
+
+    // 4. Load Stream
+    try {
+      await player.load(STREAM_URL);
+    } catch (e) {
+      console.error("Load Error", e);
+    }
+  }
+
+  async function startPlayback() {
+    try {
+      video.muted = false;
+      await video.play();
+      document.getElementById('playOverlay').classList.add('fade-out');
+    } catch (e) {
+      video.muted = true;
+      video.play();
+      document.getElementById('playOverlay').classList.add('fade-out');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
 </script>
+
 </body>
 </html>
