@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NY Cricket Live Player</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4.16.2/dist/controls.css">
+    <style>
+        body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
+        #video-container { width: 100%; max-width: 900px; aspect-ratio: 16/9; border: 2px solid #333; }
+        video { width: 100%; height: 100%; }
+        .status { position: absolute; top: 10px; color: #fff; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div id="video-container">
+    <video id="video" autoplay muted playsinline></video>
+</div>
+<div class="status" id="status">Initializing...</div>
+
+<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.16.2/dist/shaka-player.ui.min.js"></script>
+
+<script>
+    const CONFIG = {
+        manifestUrl: "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd",
+        cookieApi: "https://allrounder-live2.pages.dev/api/star-1-hindi.json",
+        clearKey: {
+            "400131994b445d8c8817202248760fda": "2d56cb6f07a75b9aff165d534ae2bfc4"
+        }
+    };
+
+    async function initPlayer() {
+        const video = document.getElementById('video');
+        const uiContainer = document.getElementById('video-container');
+        const status = document.getElementById('status');
+
+        const player = new shaka.Player(video);
+        const ui = new shaka.ui.Overlay(player, uiContainer, video);
+
+        // 1. Configure DRM (ClearKey)
+        player.configure({
+            drm: { clearKeys: CONFIG.clearKey },
+            streaming: { lowLatencyMode: true }
+        });
+
+        // 2. Fetch the Dynamic Cookie/Token
+        try {
+            status.innerText = "Fetching Authorization...";
+            const response = await fetch(CONFIG.cookieApi);
+            const data = await response.json();
+            const sessionCookie = data.cookie;
+
+            // 3. Network Filter to inject Headers and Tokens
+            player.getNetworkingEngine().registerRequestFilter((type, request) => {
+                // Add required headers
+                request.headers['Referer'] = 'https://www.jiotv.com/';
+                request.headers['User-Agent'] = 'plaYtv/7.1.5 (Linux; Android 13) ExoPlayerLib/2.11.6';
+                request.headers['Cookie'] = sessionCookie;
+
+                // Append token to URL if not already present
+                const token = sessionCookie.includes('__hdnea__=') ? sessionCookie.split('__hdnea__=')[1] : sessionCookie;
+                const separator = request.uris[0].includes('?') ? '&' : '?';
+                if (!request.uris[0].includes('__hdnea__')) {
+                    request.uris[0] += separator + '__hdnea__=' + token;
+                }
+            });
+
+            // 4. Load Stream
+            status.innerText = "Loading Stream...";
+            await player.load(CONFIG.manifestUrl);
+            status.innerText = "Live: Star Sports 1 Hindi";
+            console.log("Player loaded successfully");
+
+        } catch (error) {
+            status.innerText = "Error: " + error.message;
+            console.error("Error code", error.code, "object", error);
+        }
+    }
+
+    document.addEventListener('shaka-ui-loaded', initPlayer);
+</script>
+</body>
+</html>
