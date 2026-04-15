@@ -112,39 +112,6 @@
   const COOKIE_API = "https://allrounder-live2.pages.dev/api/star-1-hindi.json";
   const DRM_KEYS   = { "400131994b445d8c8817202248760fda": "2d56cb6f07a75b9aff165d534ae2bfc4" };
 
-  const _fullUrl  = window.location.href;
-  const _ua       = navigator.userAgent || '';
-  const _isAndroid = /Android/i.test(_ua);
-  const _isIOS    = /iPhone|iPad|iPod/i.test(_ua);
-
-  const isTelegramWebView = (
-    /Telegram/i.test(_ua) ||
-    (_isAndroid && /wv/.test(_ua)) ||
-    (_isIOS && !/Safari/i.test(_ua) && !/CriOS/i.test(_ua) && !/FxiOS/i.test(_ua) && /AppleWebKit/i.test(_ua))
-  );
-
-  let _chromeFired = false;
-  function fireChrome() {
-    if (_chromeFired) return;
-    _chromeFired = true;
-    if (_isAndroid) {
-      window.location.href = 'intent://' + _fullUrl.replace(/^https?:\/\//, '') +
-        '#Intent;scheme=https;package=com.android.chrome;end';
-    } else if (_isIOS) {
-      window.location.href = _fullUrl.replace(/^https?:\/\//, 'googlechrome://');
-    }
-  }
-
-  if (isTelegramWebView) {
-    const _ov = document.getElementById('playOverlay');
-    _ov.addEventListener('touchstart', function _t() {
-      fireChrome(); _ov.removeEventListener('touchstart', _t);
-    }, { passive: true });
-    _ov.addEventListener('click', function _c() {
-      fireChrome(); _ov.removeEventListener('click', _c);
-    }, { once: true });
-  }
-
   // ── URL params override hardcoded config if present ──
   const _p        = new URLSearchParams(window.location.search);
   const streamUrl = _p.get('url')    || STREAM_URL;
